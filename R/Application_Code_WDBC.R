@@ -1,11 +1,17 @@
+###############################################################
+# 05-30-2017
+# clean code for simulations
+
 # 8 base learners:
 # random forest, generalized linear regression, quadratic splines regression, CART, 
 # 10 nearest neighbors, generalized boosting, support vector machine, Bagging Classification
 
-# load in functions_CRSnes.R -- changes made to crs.fit: 
+# source in functions.R 
+# CRS: crs.fit function in functions.R for parameter changes: 
 #   (1)initiation using NNLS
 #   (2)region [0, 5]^K
 #   (3)normalize to sum up to 1 before output and making predictions
+
 # simply change the load data step for other runs
 # data format: Y -- outcome; W -- covariates in dataframe
 # other parameters for tuning:
@@ -49,7 +55,7 @@ library("nloptr")
 library("lpSolve")
 library("nnls")
 
-source("functions_CRSnew.r")# load functions
+source("functions.r")# load functions
 SL.library = c("SL.randomForest","SL.glm","SL.gam", "SL.rpart","SL.knn","SL.gbm","SL.svm","SL.ipredbagg")
 
 # cross validation
