@@ -181,43 +181,45 @@ srgFun = function(lambda,  W, Y, Wnew,Ynew){
 # X is cross validated predictions from single learners
 # Xnew is predictions from single learners
 crs.fit = function(seed,lambda,X,Z,Xnew,Znew){
-  # initial values
-  mod1 = lm(Z ~ X)
-  ord = order(abs(coef(mod1)[-1]),decreasing=TRUE) # order the columns by abs(coef)
-  nna = sum(!is.na(coef(mod1)[-1]))
-  ord = ord[1:nna]
+  # initial values by non-negative least squares
+  mod1 = nnls(as.matrix(X), Z) 
+  initCoef = coef(mod1)
+  initCoef[is.na(initCoef)] = 0
+  #mod1 = lm(Z ~ X)
+  ord = order(initCoef,decreasing=TRUE) # order the columns by initCoef
   X.SL = X[,ord]
-  mod1 = lm(Z ~ X.SL)
-  b1 = coef(mod1)[3:length(coef(mod1))]/abs(coef(mod1)[2]) #initial b
-  fc = as.numeric(sign(coef(mod1)[2])) #first  b coef
-  G1 = fc*X.SL[,1] + X.SL[,-1]%*%b1
+  initCoef = initCoef[ord]
+  b1 = initCoef/initCoef[1] #initial b
+  G1 = X.SL%*%b1
   cR1 = as.numeric(Opt.nonpar.rule(Z,G1,phi=0,lambda)[1]) #initial c
-  r = range((predict(mod1) - coef(mod1)[1])/abs(coef(mod1)[2]))
+  r = range(G1)
   
-  Rtest <- function(t, lambda, X, Y, fc) { 
+  Rtest <- function(t, lambda, X, Y) { #t[1] is cutoff, t[-1] is alpha
     t = matrix(unlist(t),ncol=1) 
-    G =  fc*X[,1]+X[,-1]%*%t[-1] # note that beta_gam is positive
+    G =  X%*%t[-1] 
     result = sum(lambda*(G<=t[1])*Y+(1-lambda)*(G>t[1])*(1-Y))
     return(result)
   }
   
-  fn = function(t) Rtest(t, lambda, X.SL, Z, fc) # prepare for CRS (b,c)
+  fn = function(t) Rtest(t, lambda, X.SL, Z) # prepare for CRS (c,alpha)
   x0=c(cR1,b1)
-  low = c(r[1]-0.5,rep(-5,length(b1)))
+  low = c(r[1]-0.5,rep(0,length(b1)))
   upp = c(r[2]+0.5,rep(5,length(b1)))
   crssol = crs2lm(x0 , fn , lower=low, upper=upp,
-                  maxeval = 10000, pop.size = 10000*(length(x0)+1), ranseed = seed,
+                  maxeval =  10000, pop.size = 100000*(length(x0)+1), ranseed = seed,
                   xtol_rel = 1e-6, nl.info = FALSE)
   bcrs = crssol$par[-1]
-  ccrs = crssol$par[1]
+  norm = sum(bcrs)
+  ccrs = crssol$par[1]/norm #normalize to make coefficients sum up to one
+  bcrs = bcrs/norm
   
   Xnew = as.matrix(Xnew[,ord])
   bcrs = matrix(bcrs,ncol=1)
-  Gt = fc*Xnew[,1] + Xnew[,-1]%*%bcrs #crs predictions
-  risk = sum(lambda*(Gt<=ccrs)*Znew+(1-lambda)*(Gt>ccrs)*(1-Znew)) 
+  Gt = Xnew%*%bcrs #crs predictions
+  risk = mean(lambda*(Gt<=ccrs)*Znew+(1-lambda)*(Gt>ccrs)*(1-Znew)) 
   fnr = mean((Gt<=ccrs)*Znew)/mean(Znew)
   fpr = mean((Gt>ccrs)*(1-Znew))/mean(1-Znew)
-  return(list(fc = fc, order = ord, c = ccrs, b = c(fc,bcrs), score = Gt, risk = risk, FPR = fpr, TPR = 1-fnr, sol=crssol))
+  return(list(order = ord, c = ccrs, b = bcrs, score = Gt, risk = risk, FPR = fpr, TPR = 1-fnr, sol=crssol))
   
 }
 
